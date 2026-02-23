@@ -573,18 +573,20 @@ def generate_output_excel(results):
         # ── Entry 1: Revenue Recognition ──────────────────────────────────────
         row = je_section(ws5, row, '1.  Revenue Recognition  [Para 5.1 / 5.4]', f)
 
-        # Debit: Cash / Bank (amount realised from eligible contracts)
-        if r['total_amount_realised'] > 0:
+        # Cash/Bank debit = min(amount realised, revenue recognised)
+        cash_debit = min(r['total_amount_realised'], r['revenue_to_recognise'])
+        if cash_debit > 0:
             row, dr = je_line_dr(ws5, row,
-                                 '    Cash / Bank A/c  (Amount Realised from Eligible Contracts)',
-                                 r['total_amount_realised'], f)
+                                 '    Cash / Bank A/c  (Amount Realised — capped at Revenue Recognised)',
+                                 cash_debit, f)
             total_debit += dr
 
-        # Debit: Unbilled Revenue (balance if revenue > realised)
-        if r['unbilled_revenue'] > 0:
+        # Unbilled Revenue = Revenue recognised - cash received (if rev > cash)
+        unbilled = max(0, r['revenue_to_recognise'] - r['total_amount_realised'])
+        if unbilled > 0:
             row, dr = je_line_dr(ws5, row,
                                  '    Unbilled Revenue A/c  (Revenue Recognised > Amount Realised)',
-                                 r['unbilled_revenue'], f)
+                                 unbilled, f)
             total_debit += dr
 
         # Credit: Revenue from Operations
@@ -592,7 +594,6 @@ def generate_output_excel(results):
                               '        To  Revenue from Operations A/c',
                               r['revenue_to_recognise'], f)
         total_credit += cr
-
         row = je_blank(ws5, row, f)
 
         # ── Entry 2: Cost Recognition ──────────────────────────────────────────
@@ -602,14 +603,51 @@ def generate_output_excel(results):
                               r['cost_of_revenue'], f)
         total_debit += dr
         row, cr = je_line_cr(ws5, row,
-                              '        To  Work-in-Progress A/c',
+                              '        To  Work-in-Progress / Inventory A/c',
                               r['cost_of_revenue'], f)
         total_credit += cr
         row = je_blank(ws5, row, f)
 
-    # ── Entry 3: Expected Loss (if applicable) ──────────────────────────────
+        # ── Entry 3: Excess cash → Advances (if amount realised > revenue) ────
+        excess_cash = max(0, r['total_amount_realised'] - r['revenue_to_recognise'])
+        if excess_cash > 0:
+            row = je_section(ws5, row, '3.  Excess Cash Received  [Para 9 — Advances from Customers]', f)
+            row, dr = je_line_dr(ws5, row,
+                                 '    Cash / Bank A/c  (Collections beyond Revenue Recognised)',
+                                 excess_cash, f)
+            total_debit += dr
+            row, cr = je_line_cr(ws5, row,
+                                 '        To  Advances from Customers A/c',
+                                 excess_cash, f)
+            total_credit += cr
+            row = je_blank(ws5, row, f)
+
+    else:
+        # ── PCM NOT triggered: all cash treated as Advances from Customers ────
+        if r['total_amount_realised'] > 0:
+            row = je_section(ws5, row,
+                             '1.  Collections from Customers  [PCM not yet triggered — Para 5.3]', f)
+            row, dr = je_line_dr(ws5, row,
+                                 '    Cash / Bank A/c  (Amount Collected from Customers)',
+                                 r['total_amount_realised'], f)
+            total_debit += dr
+            row, cr = je_line_cr(ws5, row,
+                                 '        To  Advances from Customers A/c',
+                                 r['total_amount_realised'], f)
+            total_credit += cr
+            row = je_blank(ws5, row, f)
+            ws5.merge_range(row, 0, row, 2,
+                            '  Note: Revenue deferred — All costs carried as Inventory / WIP on Balance Sheet.',
+                            f['warn_lbl'])
+            row += 1
+            row = je_blank(ws5, row, f)
+
+    # ── Expected Loss provision (always, if applicable) ───────────────────────
     if r['expected_loss'] > 0:
-        row = je_section(ws5, row, '3.  Expected Loss Provision  [Para 5.7]', f)
+        entry_num = '3' if r['revenue_to_recognise'] > 0 and r['total_amount_realised'] <= r['revenue_to_recognise'] else \
+                    '4' if r['revenue_to_recognise'] > 0 else '2'
+        row = je_section(ws5, row,
+                         '{}.  Expected Loss Provision  [Para 5.7]'.format(entry_num), f)
         row, dr = je_line_dr(ws5, row,
                               '    Loss on Real Estate Project A/c',
                               r['expected_loss'], f)
@@ -626,10 +664,11 @@ def generate_output_excel(results):
     ws5.write(row, 2, total_credit, f['je_total_val'])
 
     # ── Note if no entries ──────────────────────────────────────────────────
-    if r['revenue_to_recognise'] == 0 and r['expected_loss'] == 0:
+    if total_debit == 0 and total_credit == 0:
         ws5.merge_range(row, 0, row, 2,
-                        'No journal entries — Revenue recognition criteria not yet met.',
+                        'No journal entries — Revenue recognition criteria not yet met and no cash collected.',
                         f['warn_lbl'])
+
 
     # =========================================================================
     # SHEET 6 – DISCLOSURE NOTE

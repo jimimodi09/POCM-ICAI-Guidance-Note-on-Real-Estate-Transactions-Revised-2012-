@@ -422,30 +422,76 @@ else:
     with tab_je:
         st.markdown('<div class="section-hdr">Journal Entry Sheet</div>', unsafe_allow_html=True)
         entries = []
+
         if r['revenue_to_recognise'] > 0:
-            entries.append(('**1. Revenue Recognition**', '', ''))
-            # Debit side: Cash/Bank (amount realised from eligible contracts)
+            # ── Entry 1: Revenue Recognition ──────────────────────────────────
+            entries.append(('**1. Revenue Recognition  [Para 5.1 / 5.4]**', '', ''))
+
+            # Cash/Bank debit = min(amount realised, revenue recognised)
+            # (cannot debit more cash than the revenue being recognised)
+            cash_debit = min(r['total_amount_realised'], r['revenue_to_recognise'])
+            if cash_debit > 0:
+                entries.append(('    Cash / Bank A/c  (Amount Realised from Eligible Contracts)',
+                                fmt_inr(cash_debit), ''))
+
+            # Unbilled Revenue = Revenue recognised - Cash collected (positive remainder)
+            unbilled = max(0, r['revenue_to_recognise'] - r['total_amount_realised'])
+            if unbilled > 0:
+                entries.append(('    Unbilled Revenue A/c  (Revenue > Cash Received)',
+                                fmt_inr(unbilled), ''))
+
+            # Credit: full revenue recognised
+            entries.append(('        To  Revenue from Operations A/c',
+                            '', fmt_inr(r['revenue_to_recognise'])))
+            entries.append(('', '', ''))
+
+            # ── Entry 2: Cost Recognition ──────────────────────────────────────
+            entries.append(('**2. Cost Recognition  [Para 5.6]**', '', ''))
+            entries.append(('    Cost of Revenue A/c',
+                            fmt_inr(r['cost_of_revenue']), ''))
+            entries.append(('        To  Work-in-Progress / Inventory A/c',
+                            '', fmt_inr(r['cost_of_revenue'])))
+
+            # ── Entry 3: Advances refund if cash > revenue (Para 9 disclosure) ──
+            # Excess cash received beyond revenue recognised → Advances from Customers
+            excess_cash = max(0, r['total_amount_realised'] - r['revenue_to_recognise'])
+            if excess_cash > 0:
+                entries.append(('', '', ''))
+                entries.append(('**3. Excess Cash Received  [Para 9 — Advances from Customers]**', '', ''))
+                entries.append(('    Cash / Bank A/c  (Remaining collections — not yet recognised)',
+                                fmt_inr(excess_cash), ''))
+                entries.append(('        To  Advances from Customers A/c',
+                                '', fmt_inr(excess_cash)))
+
+        else:
+            # ── PCM NOT triggered: all cash collected treated as Advance ──────
             if r['total_amount_realised'] > 0:
-                entries.append(('    Cash / Bank A/c', fmt_inr(r['total_amount_realised']), ''))
-            # Debit side: Unbilled Revenue for balance not yet received
-            if r['unbilled_revenue'] > 0:
-                entries.append(('    Unbilled Revenue A/c', fmt_inr(r['unbilled_revenue']), ''))
-            # Credit side: full revenue recognised
-            entries.append(('        To Revenue from Operations A/c', '', fmt_inr(r['revenue_to_recognise'])))
-            entries.append(('', '', ''))
-            entries.append(('**2. Cost Recognition**', '', ''))
-            entries.append(('    Cost of Revenue A/c', fmt_inr(r['cost_of_revenue']), ''))
-            entries.append(('        To Work-in-Progress A/c', '', fmt_inr(r['cost_of_revenue'])))
+                entries.append(('**1. Collections from Customers  [PCM not yet triggered — Para 5.3]**', '', ''))
+                entries.append(('    Cash / Bank A/c  (Amount collected from customers)',
+                                fmt_inr(r['total_amount_realised']), ''))
+                entries.append(('        To  Advances from Customers A/c',
+                                '', fmt_inr(r['total_amount_realised'])))
+                entries.append(('', '', ''))
+                entries.append(('    [Note: Revenue recognition deferred. All costs carried as Inventory / WIP.]',
+                                '', ''))
+
+        # ── Expected Loss provision (always, if applicable) ───────────────────
         if r['expected_loss'] > 0:
+            entry_num = '3' if r['revenue_to_recognise'] > 0 and r['total_amount_realised'] <= r['revenue_to_recognise'] else \
+                        '4' if r['revenue_to_recognise'] > 0 else '2'
             entries.append(('', '', ''))
-            entries.append(('**3. Expected Loss Provision**', '', ''))
-            entries.append(('    Loss on Project A/c', fmt_inr(r['expected_loss']), ''))
-            entries.append(('        To Provision for Expected Loss A/c', '', fmt_inr(r['expected_loss'])))
+            entries.append(('**{}. Expected Loss Provision  [Para 5.7]**'.format(entry_num), '', ''))
+            entries.append(('    Loss on Real Estate Project A/c',
+                            fmt_inr(r['expected_loss']), ''))
+            entries.append(('        To  Provision for Expected Loss A/c',
+                            '', fmt_inr(r['expected_loss'])))
+
         if entries:
-            je_df = pd.DataFrame(entries, columns=['Account', 'Debit', 'Credit'])
+            je_df = pd.DataFrame(entries, columns=['Account', 'Debit (₹)', 'Credit (₹)'])
             st.dataframe(je_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No journal entries - revenue recognition criteria not met.")
+            st.info("No journal entries — revenue recognition criteria not met and no cash collected.")
+
 
 
     # --- TAB: Disclosures ---
