@@ -24,10 +24,11 @@ print("Sale Consideration (Agreements): {:,.0f}".format(r['total_agreement_value
 print("Total Estimated Revenue: {:,.0f}".format(r['est_revenue']))
 print("Pending Realisation: {:,.0f}".format(r['pending_realisation']))
 
-print("\n--- THRESHOLDS ---")
-print("Construction %: {:.1f}% (Pass: {})".format(r['thresholds']['construction_pct'], r['thresholds']['construction_pass']))
-print("Area Sold %: {:.1f}% (Pass: {})".format(r['thresholds']['area_sold_pct'], r['thresholds']['area_pass']))
-print("All Thresholds Met: {}".format(r['all_thresholds_met']))
+print("\n--- THRESHOLDS (Para 5.3 — All Three Must Be Satisfied) ---")
+print("Para 5.3(b) Construction %: {:.1f}% (Pass: {})".format(r['thresholds']['construction_pct'], r['thresholds']['construction_pass']))
+print("Para 5.3(c) Area Sold %: {:.1f}% (Pass: {})".format(r['thresholds']['area_sold_pct'], r['thresholds']['area_pass']))
+print("Para 5.3(d) 10% Realisation per Contract (Pass: {})".format(r['thresholds']['realisation_pass']))
+print("All Three Thresholds Met: {}".format(r['all_thresholds_met']))
 
 print("\n--- REVENUE & PROFIT ---")
 print("Stage of Completion: {:.2%}".format(r['stage_of_completion']))
@@ -36,14 +37,20 @@ print("Revenue Recognised: {:,.0f}".format(r['revenue_to_recognise']))
 print("Cost of Revenue: {:,.0f}".format(r['cost_of_revenue']))
 print("Profit: {:,.0f}".format(r['profit']))
 
-print("\n--- CLOSING INVENTORY / WIP (Per ICAI Illustration) ---")
-print("A. Inventory of Unsold Units: {:,.0f}".format(r['inventory_unsold_units']))
-print("   = ({:,.0f} / {:,.0f}) x {:,.0f}".format(r['unsold_area'], r['total_saleable'], r['total_incurred']))
-print("B. WIP of Sold Units: {:,.0f}".format(r['wip_sold_units']))
-print("   = ({:,.0f} / {:,.0f}) x {:,.0f} - {:,.0f}".format(
-    r['area_sold'], r['total_saleable'], r['total_incurred'], r['cost_of_revenue']))
-print("Total Closing Inventory: {:,.0f}".format(r['total_closing_inventory']))
-print("Cross-check (Incurred - Cost of Rev): {:,.0f}".format(r['total_incurred'] - r['cost_of_revenue']))
+print("\n--- CLOSING INVENTORY / WIP ---")
+if not r['all_thresholds_met']:
+    print("  [PCM conditions (Para 5.3) NOT MET — No revenue or cost recognised in P&L]")
+    print("  Total Cost Incurred (Balance Sheet - Inventory/WIP): {:,.0f}".format(r['total_closing_inventory']))
+    print("  Cost of Revenue (P&L): NIL")
+    print("  Profit / (Loss): NIL")
+else:
+    print("A. Inventory of Unsold Units: {:,.0f}".format(r['inventory_unsold_units']))
+    print("   = ({:,.0f} / {:,.0f}) x {:,.0f}".format(r['unsold_area'], r['total_saleable'], r['total_incurred']))
+    print("B. WIP of Sold Units: {:,.0f}".format(r['wip_sold_units']))
+    print("   = ({:,.0f} / {:,.0f}) x {:,.0f} - {:,.0f}".format(
+        r['area_sold'], r['total_saleable'], r['total_incurred'], r['cost_of_revenue']))
+    print("Total Closing Inventory: {:,.0f}".format(r['total_closing_inventory']))
+    print("Cross-check (Incurred - Cost of Rev): {:,.0f}".format(r['total_incurred'] - r['cost_of_revenue']))
 
 print("\n--- OTHER ---")
 print("Unbilled Revenue: {:,.0f}".format(r['unbilled_revenue']))

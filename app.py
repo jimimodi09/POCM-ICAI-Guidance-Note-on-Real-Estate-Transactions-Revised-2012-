@@ -227,28 +227,60 @@ else:
 
         # ROW 3: Inventory & Other
         st.markdown("")
-        c5, c6, c7, c8 = st.columns(4)
-        with c5:
-            st.markdown(kpi_card("Inventory - Unsold Units", fmt_inr(r['inventory_unsold_units'])),
-                        unsafe_allow_html=True)
-        with c6:
-            st.markdown(kpi_card("WIP - Sold Units", fmt_inr(r['wip_sold_units'])), unsafe_allow_html=True)
-        with c7:
-            st.markdown(kpi_card("Unbilled Revenue", fmt_inr(r['unbilled_revenue'])), unsafe_allow_html=True)
-        with c8:
-            color = "red" if r['expected_loss'] > 0 else "green"
-            lbl = fmt_inr(r['expected_loss']) if r['expected_loss'] > 0 else "NIL"
-            st.markdown(kpi_card("Expected Loss", lbl, color), unsafe_allow_html=True)
+        if not r['all_thresholds_met']:
+            # PCM not triggered — all costs on Balance Sheet as one Inventory/WIP block
+            c5, c6, c7 = st.columns(3)
+            with c5:
+                st.markdown(
+                    kpi_card("Total Closing Inventory / WIP (Balance Sheet)",
+                             fmt_inr(r['total_closing_inventory']), extra_cls="accent"),
+                    unsafe_allow_html=True)
+            with c6:
+                st.markdown(kpi_card("Unbilled Revenue", fmt_inr(r['unbilled_revenue'])), unsafe_allow_html=True)
+            with c7:
+                color = "red" if r['expected_loss'] > 0 else "green"
+                lbl = fmt_inr(r['expected_loss']) if r['expected_loss'] > 0 else "NIL"
+                st.markdown(kpi_card("Expected Loss", lbl, color), unsafe_allow_html=True)
+            # Info banner explaining why
+            st.markdown(
+                '<div style="background:#FFF3E0;border-left:4px solid #E65100;padding:0.7rem 1.2rem;'
+                'border-radius:6px;font-size:0.85rem;margin-top:0.5rem;">'
+                '📦 <b>All construction costs are carried as Inventory / WIP</b> — '
+                'PCM conditions (Para 5.3) not yet satisfied. '
+                'Revenue = NIL &nbsp;|&nbsp; Cost of Revenue = NIL &nbsp;|&nbsp; Profit = NIL</div>',
+                unsafe_allow_html=True)
+        else:
+            c5, c6, c7, c8 = st.columns(4)
+            with c5:
+                st.markdown(kpi_card("Inventory - Unsold Units", fmt_inr(r['inventory_unsold_units'])),
+                            unsafe_allow_html=True)
+            with c6:
+                st.markdown(kpi_card("WIP - Sold Units", fmt_inr(r['wip_sold_units'])), unsafe_allow_html=True)
+            with c7:
+                st.markdown(kpi_card("Unbilled Revenue", fmt_inr(r['unbilled_revenue'])), unsafe_allow_html=True)
+            with c8:
+                color = "red" if r['expected_loss'] > 0 else "green"
+                lbl = fmt_inr(r['expected_loss']) if r['expected_loss'] > 0 else "NIL"
+                st.markdown(kpi_card("Expected Loss", lbl, color), unsafe_allow_html=True)
+
 
         # Threshold Status
-        st.markdown('<div class="section-hdr">Threshold Validation (Para 5.3)</div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
+        st.markdown('<div class="section-hdr">Threshold Validation (Para 5.3) — All Three Must Be Satisfied</div>', unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown(threshold_badge("Construction Completion", "{:.1f}%".format(t['construction_pct']),
+            st.markdown(threshold_badge("Para 5.3(b) — Construction & Dev. Cost",
+                                        "{:.1f}%".format(t['construction_pct']),
                                         t['construction_pass']), unsafe_allow_html=True)
         with c2:
-            st.markdown(threshold_badge("Area Sold", "{:.1f}%".format(t['area_sold_pct']),
+            st.markdown(threshold_badge("Para 5.3(c) — Area Secured by Agreements",
+                                        "{:.1f}%".format(t['area_sold_pct']),
                                         t['area_pass']), unsafe_allow_html=True)
+        with c3:
+            realisation_label = "At least one contract ≥ 10% realised" if t['realisation_pass'] else "No contract has ≥ 10% realisation"
+            st.markdown(threshold_badge("Para 5.3(d) — Minimum 10% Realisation",
+                                        realisation_label,
+                                        t['realisation_pass'],
+                                        threshold="Any contract ≥ 10%"), unsafe_allow_html=True)
 
         # Warnings
         if r['warnings']:
@@ -320,27 +352,52 @@ else:
 
     # --- TAB: Inventory & WIP ---
     with tab_inv:
-        st.markdown('<div class="section-hdr">Closing Inventory / WIP (Per ICAI Illustration)</div>',
+        st.markdown('<div class="section-hdr">Closing Inventory / WIP</div>',
                     unsafe_allow_html=True)
-        inv_data = {
-            'Particulars': [
-                'Total Cost Incurred', 'Less: Cost of Revenue (P&L)', '',
-                'A. Inventory of Unsold Units',
-                '   Unsold Area (sq.ft): {:,.0f}'.format(r['unsold_area']),
-                '   = (Unsold Area / Total Area) x Total Cost Incurred', '',
-                'B. WIP of Sold Units (cost not yet recognised)',
-                '   = (Sold Area / Total Area) x Cost Incurred - Cost of Revenue', '',
-                'Total Closing Inventory / WIP (A + B)',
-                'Cross-check: Total Incurred - Cost of Revenue',
-            ],
-            'Amount': [
-                fmt_inr(r['total_incurred']), fmt_inr(r['cost_of_revenue']), '',
-                fmt_inr(r['inventory_unsold_units']), '', '', '',
-                fmt_inr(r['wip_sold_units']), '', '',
-                fmt_inr(r['total_closing_inventory']),
-                fmt_inr(r['total_incurred'] - r['cost_of_revenue']),
-            ]
-        }
+
+        if not r['all_thresholds_met']:
+            # PCM conditions NOT met — ENTIRE cost goes to Balance Sheet, nil to P&L
+            st.warning(
+                "⚠️ **PCM conditions (Para 5.3) not met** — Revenue and Cost of Revenue are NIL. "
+                "All construction costs are carried as **Inventory / Work-in-Progress** on the Balance Sheet "
+                "until the conditions are satisfied."
+            )
+            inv_data = {
+                'Particulars': [
+                    'Total Cost Incurred to Date',
+                    'Less: Cost of Revenue charged to P&L',
+                    '',
+                    'Closing Inventory / WIP (entire cost — Balance Sheet)',
+                    '  [No unsold/sold split applied — PCM not yet triggered]',
+                ],
+                'Amount': [
+                    fmt_inr(r['total_incurred']),
+                    'NIL',
+                    '',
+                    fmt_inr(r['total_closing_inventory']),
+                    '',
+                ]
+            }
+        else:
+            inv_data = {
+                'Particulars': [
+                    'Total Cost Incurred', 'Less: Cost of Revenue (P&L)', '',
+                    'A. Inventory of Unsold Units',
+                    '   Unsold Area (sq.ft): {:,.0f}'.format(r['unsold_area']),
+                    '   = (Unsold Area / Total Area) x Total Cost Incurred', '',
+                    'B. WIP of Sold Units (cost not yet recognised)',
+                    '   = (Sold Area / Total Area) x Cost Incurred - Cost of Revenue', '',
+                    'Total Closing Inventory / WIP (A + B)',
+                    'Cross-check: Total Incurred - Cost of Revenue',
+                ],
+                'Amount': [
+                    fmt_inr(r['total_incurred']), fmt_inr(r['cost_of_revenue']), '',
+                    fmt_inr(r['inventory_unsold_units']), '', '', '',
+                    fmt_inr(r['wip_sold_units']), '', '',
+                    fmt_inr(r['total_closing_inventory']),
+                    fmt_inr(r['total_incurred'] - r['cost_of_revenue']),
+                ]
+            }
         st.dataframe(pd.DataFrame(inv_data), use_container_width=True, hide_index=True)
 
         if r['expected_loss'] > 0:
@@ -423,9 +480,9 @@ as per ICAI Guidance Note on Accounting for Real Estate Transactions (Revised 20
         st.markdown('<div class="section-hdr">Compliance Report - ICAI Guidance Note (Revised 2012)</div>',
                     unsafe_allow_html=True)
         checks = [
-            ('Para 5.3(b)', 'Construction completion >= 25%', t['construction_pass']),
-            ('Para 5.3(c)', 'Area sold >= 25% of total saleable area', t['area_pass']),
-            ('Para 5.3(d)', '10% realisation per eligible contract', True),
+            ('Para 5.3(b)', 'Construction & dev. cost incurred >= 25% of total estimated cost', t['construction_pass']),
+            ('Para 5.3(c)', 'Area secured by agreements >= 25% of total saleable area', t['area_pass']),
+            ('Para 5.3(d)', 'At least 10% of agreement value realised per active contract', t['realisation_pass']),
             ('Para 5.4', 'Revenue recognised using POCM', r['all_thresholds_met']),
             ('Para 5.6', 'Cost incurred method used for stage of completion', True),
             ('Para 5.7', 'Expected loss recognised in full if applicable', True),
