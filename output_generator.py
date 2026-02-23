@@ -458,20 +458,46 @@ def generate_output_excel(results):
     ws4.set_row(2, 14)
     ws4.write(3, 0, 'Particulars', f['col_hdr'])
     ws4.write(3, 1, 'Amount (₹)', f['col_hdr'])
-    w_items = [
-        ('Total Cost Incurred',                                               r['total_incurred'],              'val_num'),
-        ('Less: Cost of Revenue (P&L)',                                        r['cost_of_revenue'],             'val_num'),
-        ('', '', ''),
-        ('A.  Inventory of Unsold Units',                                     r['inventory_unsold_units'],       'val_num'),
-        ('     Unsold Area:  {:,.0f} sq.ft'.format(r['unsold_area']),         '',                               ''),
-        ('     = (Unsold Area ÷ Total Area)  ×  Total Cost Incurred',         '',                               ''),
-        ('', '', ''),
-        ('B.  WIP of Sold Units  (cost incurred but not yet recognised)',      r['wip_sold_units'],              'val_num'),
-        ('     = (Sold Area ÷ Total Area)  ×  Cost Incurred  −  Cost of Rev', '',                               ''),
-        ('', '', ''),
-        ('Total Closing Inventory / WIP  (A + B)',                            r['total_closing_inventory'],     'val_num'),
-        ('Cross-check:  Total Cost Incurred  −  Cost of Revenue',             r['total_incurred'] - r['cost_of_revenue'], 'val_num'),
-    ]
+
+    if not r['all_thresholds_met']:
+        # PCM conditions NOT met — ALL costs go to Balance Sheet as Inventory/WIP, NOTHING to P&L
+        w_items = [
+            ('Total Cost Incurred to Date',
+             r['total_incurred'], 'val_num'),
+            ('Less: Cost of Revenue charged to P&L  [PCM not triggered]',
+             'NIL', 'val_txt'),
+            ('', '', ''),
+            ('Closing Inventory / WIP  (Entire cost — Balance Sheet)',
+             r['total_closing_inventory'], 'val_num'),
+            ('  [PCM conditions Para 5.3 not yet satisfied — no split applied]',
+             '', ''),
+            ('', '', ''),
+            ('Revenue Recognised',  'NIL', 'val_txt'),
+            ('Cost of Revenue (P&L)', 'NIL', 'val_txt'),
+            ('Profit / (Loss)',       'NIL', 'val_txt'),
+        ]
+    else:
+        w_items = [
+            ('Total Cost Incurred',
+             r['total_incurred'], 'val_num'),
+            ('Less: Cost of Revenue (P&L)',
+             r['cost_of_revenue'], 'val_num'),
+            ('', '', ''),
+            ('A.  Inventory of Unsold Units',
+             r['inventory_unsold_units'], 'val_num'),
+            ('     Unsold Area:  {:,.0f} sq.ft'.format(r['unsold_area']), '', ''),
+            ('     = (Unsold Area ÷ Total Area)  ×  Total Cost Incurred', '', ''),
+            ('', '', ''),
+            ('B.  WIP of Sold Units  (cost incurred but not yet recognised)',
+             r['wip_sold_units'], 'val_num'),
+            ('     = (Sold Area ÷ Total Area)  ×  Cost Incurred  −  Cost of Rev', '', ''),
+            ('', '', ''),
+            ('Total Closing Inventory / WIP  (A + B)',
+             r['total_closing_inventory'], 'val_num'),
+            ('Cross-check:  Total Cost Incurred  −  Cost of Revenue',
+             r['total_incurred'] - r['cost_of_revenue'], 'val_num'),
+        ]
+
     row = 4
     for item in w_items:
         lbl_text, val_data, _ = item
@@ -481,6 +507,9 @@ def generate_output_excel(results):
         elif val_data == '':
             ws4.write(row, 0, lbl_text, f['lbl_indent'])
             ws4.write_blank(row, 1, None, f['blank_border'])
+        elif isinstance(val_data, str):
+            ws4.write(row, 0, lbl_text, f['lbl'])
+            ws4.write(row, 1, val_data, f['val_txt'])
         else:
             ws4.write(row, 0, lbl_text, f['lbl'])
             ws4.write(row, 1, val_data, f['val_num'])
@@ -715,10 +744,14 @@ def generate_output_excel(results):
     ws8.write(3, 1, 'Requirement', f['col_hdr'])
     ws8.write(3, 2, 'Status', f['col_hdr'])
     checks = [
-        ('Para 5.3(b)', 'Construction completion ≥ 25%',                      t['construction_pass']),
-        ('Para 5.3(c)', 'Area sold ≥ 25% of total saleable area',             t['area_pass']),
-        ('Para 5.3(d)', '10% realisation met per eligible contract',           True),
-        ('Para 5.4',    'Revenue recognised using POCM',                       r['all_thresholds_met']),
+        ('Para 5.3(b)', 'Construction & dev. cost incurred >= 25% of total estimated cost',
+         t['construction_pass']),
+        ('Para 5.3(c)', 'Area secured by agreements >= 25% of total saleable area',
+         t['area_pass']),
+        ('Para 5.3(d)', 'At least 10% of agreement value realised per active contract',
+         t['realisation_pass']),
+        ('Para 5.4',    'Revenue recognised using POCM',
+         r['all_thresholds_met']),
         ('Para 5.6',    'Cost incurred method used for stage of completion',   True),
         ('Para 5.7',    'Expected loss recognised in full (if applicable)',    True),
         ('Para 9',      'Disclosure note prepared with all required items',    True),

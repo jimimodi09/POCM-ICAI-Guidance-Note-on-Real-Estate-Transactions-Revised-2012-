@@ -130,25 +130,81 @@ def generate_template():
         ws4.write(2, c, col, locked_hdr)
 
     logic = [
-        ('1.1', 'Total Estimated Project Cost', "=PROJECT_MASTER!B9", 'Para 5.2', locked_val),
-        ('1.2', 'Total Cost Incurred to Date', "=COST_INCURRED!B7", 'Para 5.2', locked_val),
-        ('1.3', 'Stage of Completion (%)', "=IF(C4=0,0,C5/C4)", 'Para 5.6', locked_pct),
-        ('2.1', 'Construction Completion %', "=IF(PROJECT_MASTER!B7=0,0,COST_INCURRED!B5/PROJECT_MASTER!B7)", 'Para 5.3(b)', locked_pct),
-        ('2.2', 'Total Area Sold (Sq.ft)', '=SUMPRODUCT((UNIT_WISE_DATA!I4:I503="Active")*(UNIT_WISE_DATA!C4:C503))', 'Para 5.3(c)', locked_val),
-        ('2.3', 'Area Sold %', "=IF(PROJECT_MASTER!B5=0,0,C8/PROJECT_MASTER!B5)", 'Para 5.3(c)', locked_pct),
-        ('2.4', 'All Thresholds Met?', '=IF(AND(C7>=0.25,C9>=0.25),"YES","NO")', 'Para 5.3', locked_yn),
-        ('3.1', 'Eligible Revenue (Sum)', '=SUMPRODUCT((UNIT_WISE_DATA!H4:H503="YES")*(UNIT_WISE_DATA!D4:D503))', 'Para 5.3(d)', locked_val),
-        ('3.2', 'Revenue to Recognise', '=IF(C10="YES",MIN(C6*C11,C11),0)', 'Para 5.1', locked_val),
-        ('4.1', 'Cost of Revenue (P&L)', '=IF(PROJECT_MASTER!B5=0,0,C6*(C8/PROJECT_MASTER!B5)*C4)', 'Para 5.6', locked_val),
-        ('4.2', 'Unsold Area (Sq.ft)', '=PROJECT_MASTER!B5-C8', 'Inventory', locked_val),
-        ('4.3', 'Inventory of Unsold Units', '=IF(PROJECT_MASTER!B5=0,0,(C14/PROJECT_MASTER!B5)*C5)', 'Balance Sheet', locked_val),
-        ('4.4', 'WIP of Sold Units', '=IF(PROJECT_MASTER!B5=0,0,(C8/PROJECT_MASTER!B5)*C5)-C13', 'Balance Sheet', locked_val),
-        ('4.5', 'Total Closing Inventory / WIP', '=C15+C16', 'Balance Sheet', locked_val),
-        ('5.1', 'Profit / (Loss)', '=C12-C13', 'P&L', locked_val),
-        ('6.1', 'Amount Realised (Eligible)', '=SUMPRODUCT((UNIT_WISE_DATA!H4:H503="YES")*(UNIT_WISE_DATA!E4:E503))', 'Cash Basis', locked_val),
-        ('6.2', 'Unbilled Revenue', '=MAX(0,C12-C20)', 'Disclosure', locked_val),
-        ('6.3', 'Advances from Customers', '=MAX(0,C20-C12)', 'Disclosure', locked_val),
-        ('7.1', 'Expected Loss', '=IF(C4>C11,C4-C11,0)', 'Para 5.7', locked_val),
+        # ── STEP 1: Cost & Stage ──────────────────────────────────────────────
+        ('1.1', 'Total Estimated Project Cost',
+         '=PROJECT_MASTER!B9', 'Para 5.2', locked_val),
+        ('1.2', 'Total Cost Incurred to Date',
+         '=COST_INCURRED!B7', 'Para 5.2', locked_val),
+        ('1.3', 'Stage of Completion (%)',
+         '=IF(C4=0,0,C5/C4)', 'Para 5.6', locked_pct),
+
+        # ── STEP 2: Threshold checks ─────────────────────────────────────────
+        ('2.1', 'Construction Completion %  [Para 5.3(b)]',
+         '=IF(PROJECT_MASTER!B7=0,0,COST_INCURRED!B5/PROJECT_MASTER!B7)',
+         'Para 5.3(b)', locked_pct),
+        ('2.2', 'Total Area Sold (Sq.ft)  [Para 5.3(c)]',
+         '=SUMPRODUCT((UNIT_WISE_DATA!I4:I503="Active")*(UNIT_WISE_DATA!C4:C503))',
+         'Para 5.3(c)', locked_val),
+        ('2.3', 'Area Sold %  [Para 5.3(c)]',
+         '=IF(PROJECT_MASTER!B5=0,0,C8/PROJECT_MASTER!B5)',
+         'Para 5.3(c)', locked_pct),
+        # Para 5.3(d): at least one Active contract with >= 10% realisation
+        ('2.4', 'All Thresholds Met?  [Para 5.3 — all three conditions]',
+         '=IF(AND(C7>=0.25,C9>=0.25,COUNTIFS(UNIT_WISE_DATA!I4:I503,"Active",UNIT_WISE_DATA!G4:G503,"YES")>0),"YES","NO")',
+         'Para 5.3', locked_yn),
+
+        # ── STEP 3: Revenue ───────────────────────────────────────────────────
+        ('3.1', 'Eligible Revenue (Sum of Eligible Contracts)',
+         '=SUMPRODUCT((UNIT_WISE_DATA!H4:H503="YES")*(UNIT_WISE_DATA!D4:D503))',
+         'Para 5.3(d)', locked_val),
+        ('3.2', 'Revenue to Recognise  [NIL if thresholds not met]',
+         '=IF(C10="YES",MIN(C6*C11,C11),0)',
+         'Para 5.1', locked_val),
+
+        # ── STEP 4: Cost & Inventory ──────────────────────────────────────────
+        # Cost of Revenue: NIL when thresholds not met (entire cost stays on Balance Sheet)
+        ('4.1', 'Cost of Revenue (P&L)  [NIL if Para 5.3 not met]',
+         '=IF(C10="YES",IF(PROJECT_MASTER!B5=0,0,C6*(C8/PROJECT_MASTER!B5)*C4),0)',
+         'Para 5.6', locked_val),
+        ('4.2', 'Unsold Area (Sq.ft)',
+         '=PROJECT_MASTER!B5-C8',
+         'Inventory', locked_val),
+        # Inventory of Unsold: NIL when thresholds not met
+        ('4.3', 'Inventory of Unsold Units  (Balance Sheet)',
+         '=IF(C10="YES",IF(PROJECT_MASTER!B5=0,0,(C14/PROJECT_MASTER!B5)*C5),0)',
+         'Balance Sheet', locked_val),
+        # WIP of Sold: NIL when thresholds not met
+        ('4.4', 'WIP of Sold Units  (Balance Sheet)',
+         '=IF(C10="YES",IF(PROJECT_MASTER!B5=0,0,(C8/PROJECT_MASTER!B5)*C5)-C13,0)',
+         'Balance Sheet', locked_val),
+        # Total Closing Inventory = full cost incurred when thresholds not met
+        ('4.5', 'Total Closing Inventory / WIP',
+         '=IF(C10="YES",C15+C16,C5)',
+         'Balance Sheet', locked_val),
+
+        # ── STEP 5: Profit ────────────────────────────────────────────────────
+        # Profit = 0 when thresholds not met (Revenue = 0, Cost of Revenue = 0)
+        ('5.1', 'Profit / (Loss)  [NIL if Para 5.3 not met]',
+         '=C12-C13',
+         'P&L', locked_val),
+
+        # ── STEP 6: Disclosures ───────────────────────────────────────────────
+        ('6.1', 'Amount Realised (Eligible)',
+         '=SUMPRODUCT((UNIT_WISE_DATA!H4:H503="YES")*(UNIT_WISE_DATA!E4:E503))',
+         'Cash Basis', locked_val),
+        # Unbilled = Revenue Recognised - Amount Realised (C19 = Amount Realised)
+        ('6.2', 'Unbilled Revenue',
+         '=MAX(0,C12-C19)',
+         'Disclosure', locked_val),
+        # Advances = Amount Realised - Revenue Recognised (C19 = Amount Realised)
+        ('6.3', 'Advances from Customers',
+         '=MAX(0,C19-C12)',
+         'Disclosure', locked_val),
+
+        # ── STEP 7: Expected Loss ─────────────────────────────────────────────
+        ('7.1', 'Expected Loss  [Para 5.7]',
+         '=IF(C4>C11,C4-C11,0)',
+         'Para 5.7', locked_val),
     ]
 
     for i, (step, desc, formula, ref, fmt) in enumerate(logic):

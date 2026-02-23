@@ -229,7 +229,7 @@ else:
         st.markdown("")
         if not r['all_thresholds_met']:
             # PCM not triggered — all costs on Balance Sheet as one Inventory/WIP block
-            c5, c6, c7 = st.columns(3)
+            c5, c6, c7, c8 = st.columns(4)
             with c5:
                 st.markdown(
                     kpi_card("Total Closing Inventory / WIP (Balance Sheet)",
@@ -238,6 +238,10 @@ else:
             with c6:
                 st.markdown(kpi_card("Unbilled Revenue", fmt_inr(r['unbilled_revenue'])), unsafe_allow_html=True)
             with c7:
+                adv_color = "amber" if r['advances'] > 0 else ""
+                st.markdown(kpi_card("Advances from Customers", fmt_inr(r['advances']), adv_color),
+                            unsafe_allow_html=True)
+            with c8:
                 color = "red" if r['expected_loss'] > 0 else "green"
                 lbl = fmt_inr(r['expected_loss']) if r['expected_loss'] > 0 else "NIL"
                 st.markdown(kpi_card("Expected Loss", lbl, color), unsafe_allow_html=True)
@@ -250,7 +254,7 @@ else:
                 'Revenue = NIL &nbsp;|&nbsp; Cost of Revenue = NIL &nbsp;|&nbsp; Profit = NIL</div>',
                 unsafe_allow_html=True)
         else:
-            c5, c6, c7, c8 = st.columns(4)
+            c5, c6, c7, c8, c9 = st.columns(5)
             with c5:
                 st.markdown(kpi_card("Inventory - Unsold Units", fmt_inr(r['inventory_unsold_units'])),
                             unsafe_allow_html=True)
@@ -259,6 +263,10 @@ else:
             with c7:
                 st.markdown(kpi_card("Unbilled Revenue", fmt_inr(r['unbilled_revenue'])), unsafe_allow_html=True)
             with c8:
+                adv_color = "amber" if r['advances'] > 0 else ""
+                st.markdown(kpi_card("Advances from Customers", fmt_inr(r['advances']), adv_color),
+                            unsafe_allow_html=True)
+            with c9:
                 color = "red" if r['expected_loss'] > 0 else "green"
                 lbl = fmt_inr(r['expected_loss']) if r['expected_loss'] > 0 else "NIL"
                 st.markdown(kpi_card("Expected Loss", lbl, color), unsafe_allow_html=True)
